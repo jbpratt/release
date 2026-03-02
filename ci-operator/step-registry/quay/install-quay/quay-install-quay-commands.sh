@@ -45,6 +45,9 @@ metadata:
   name: quay
 EOF
 
+oc -n quay create secret generic quay-config-bundle \
+    --from-literal=config.yaml=$'FEATURE_USER_INITIALIZE: true\nSUPER_USERS:\n- admin\n'
+
 cat <<EOF | oc apply -f -
 apiVersion: quay.redhat.com/v1
 kind: QuayRegistry
@@ -52,6 +55,7 @@ metadata:
   name: quay
   namespace: quay
 spec:
+  configBundleSecret: quay-config-bundle
   components:
   - kind: clair
     managed: true
@@ -62,6 +66,34 @@ for i in $(seq 1 90); do
     status="$(oc -n quay get quayregistry quay -o jsonpath='{.status.conditions[?(@.type=="Available")].status}' 2>/dev/null || true)"
     if [[ "$status" == "True" ]]; then
         echo "Quay is ready (after $((i * 10))s)" >&2
+
+        registryEndpoint="$(oc -n quay get quayregistry quay -o jsonpath='{.status.registryEndpoint}')"
+
+        echo "Creating admin user via API..." >&2
+        init_response=$(curl -sk -X POST "${registryEndpoint}/api/v1/user/initialize" \
+            -H 'Content-Type: application/json' \
+            -d '{"username": "admin", "password": "p@ssw0rd", "email": "admin@localhost.local", "access_token": true}')
+
+        access_token=$(echo "$init_response" | grep -o '"access_token" *: *"[^"]*"' | head -1 | sed 's/.*: *"//;s/"$//')
+        if [[ -z "$access_token" ]]; then
+            echo "Failed to initialize admin user. Response: $init_response" >&2
+            exit 1
+        fi
+        echo "Admin user created successfully" >&2
+
+        echo "Creating organization and OAuth application..." >&2
+        curl -sk -X POST "${registryEndpoint}/api/v1/organization/" \
+            -H 'Content-Type: application/json' \
+            -H "Authorization: Bearer ${access_token}" \
+            -d '{"name": "quay-bridge-operator", "email": "quay-bridge-operator@localhost.local"}'
+
+        curl -sk -X POST "${registryEndpoint}/api/v1/organization/quay-bridge-operator/applications" \
+            -H 'Content-Type: application/json' \
+            -H "Authorization: Bearer ${access_token}" \
+            -d '{"name": "quay-bridge-operator", "redirect_uri": "", "application_uri": ""}'
+
+        printf "%s" "$access_token" >"$SHARED_DIR/quay-access-token"
+        echo "Quay install and admin setup complete" >&2
         exit 0
     fi
     if (( i % 6 == 0 )); then

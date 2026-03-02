@@ -64,7 +64,6 @@ tests:
     - ref: quay-install-odf-operator
     - ref: quay-install-quay-operator
     - ref: quay-install-quay
-    - ref: quay-create-admin
     - ref: optional-operators-subscribe
     - ref: quay-enable-quay-bridge-operator
     test:
@@ -98,7 +97,6 @@ tests:
     - ref: quay-install-odf-operator
     - ref: quay-install-quay-operator
     - ref: quay-install-quay
-    - ref: quay-create-admin
     - ref: optional-operators-subscribe
     - ref: quay-enable-quay-bridge-operator
     test:

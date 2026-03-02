@@ -3,6 +3,10 @@ base_images:
     name: "4.20"
     namespace: ocp
     tag: cli
+  quay-app:
+    name: quay-server
+    namespace: quay
+    tag: latest
   ubi:
     name: ubi
     namespace: ocp
@@ -34,6 +38,8 @@ operator:
   substitutions:
   - pullspec: quay.io/projectquay/quay-operator:v3.99.0-dev
     with: quay-operator
+  - pullspec: quay.io/projectquay/quay:latest
+    with: quay-app
 promotion:
   to:
   - excluded_images:
@@ -70,7 +76,6 @@ tests:
     - ref: quay-install-odf-operator
     - ref: optional-operators-subscribe
     - ref: quay-install-quay
-    - ref: quay-create-admin
     test:
     - as: tests
       commands: |

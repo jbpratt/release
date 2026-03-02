@@ -70,7 +70,6 @@ tests:
     - ref: quay-install-odf-operator
     - ref: optional-operators-subscribe
     - ref: quay-install-quay
-    - ref: quay-create-admin
     test:
     - as: tests
       commands: |

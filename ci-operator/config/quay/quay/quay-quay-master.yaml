@@ -26,6 +26,10 @@ images:
     RUN npx playwright install chromium
   from: src
   to: quay-playwright-runner
+promotion:
+  to:
+  - namespace: quay
+    tag: latest
 releases:
   latest:
     candidate:
