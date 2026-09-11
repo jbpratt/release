@@ -69,7 +69,8 @@ function on_exit() {
     LP_IO__ET_PPP__NEW_TS_NAME="${DR__RP__CR_COMP_NAME}--%s" \
       ExitTrap--PostProcessPrep junit--quay-tests__deploy-quay-gcp__quay-tests-deploy-quay-gcp.xml || true
   fi
-  write_quay_install_junit "${ec}"
+  # Never let a junit write failure replace the deployment exit status.
+  write_quay_install_junit "${ec}" || true
   exit "${ec}"
 }
 trap on_exit EXIT
