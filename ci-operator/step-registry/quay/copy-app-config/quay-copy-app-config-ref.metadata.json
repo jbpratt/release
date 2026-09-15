@@ -1,0 +1,11 @@
+{
+	"path": "quay/copy-app-config/quay-copy-app-config-ref.yaml",
+	"owners": {
+		"approvers": [
+			"quay-approvers"
+		],
+		"reviewers": [
+			"quay-approvers"
+		]
+	}
+}
