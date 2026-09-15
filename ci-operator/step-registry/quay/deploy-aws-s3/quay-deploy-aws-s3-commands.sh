@@ -325,7 +325,75 @@ if ! oc get crd quayregistries.quay.redhat.com &>/dev/null; then
   exit 1
 fi
 
+function ensure_yq() {
+  if [[ -x /tmp/yq ]]; then
+    return 0
+  fi
+  curl -sL "https://github.com/mikefarah/yq/releases/latest/download/yq_linux_$(uname -m | sed 's/aarch64/arm64/;s/x86_64/amd64/')" \
+    -o /tmp/yq && chmod +x /tmp/yq
+}
+
 #Deploy Quay, here disable monitoring component
+if [[ -s "${SHARED_DIR}/quay-app-config.yaml" ]]; then
+  echo "Using Quay app config baseline from SHARED_DIR"
+  cp "${SHARED_DIR}/quay-app-config.yaml" config.yaml
+
+  if [[ -n "${QUAY_EXTRA_CONFIG:-}" ]]; then
+    echo "Merging extra Quay config into baseline..."
+    echo "${QUAY_EXTRA_CONFIG}" >extra_config.yaml
+    ensure_yq
+    /tmp/yq eval-all -i 'select(fileIndex == 0) * select(fileIndex == 1)' config.yaml extra_config.yaml
+  fi
+
+  cat >runtime_config.yaml <<EOF
+USERFILES_LOCATION: default
+USERFILES_PATH: userfiles/
+DISTRIBUTED_STORAGE_DEFAULT_LOCATIONS:
+  - default
+DISTRIBUTED_STORAGE_PREFERENCE:
+  - default
+DISTRIBUTED_STORAGE_CONFIG:
+  default:
+    - S3Storage
+    - s3_bucket: $QUAY_AWS_S3_BUCKET
+      storage_path: /quay
+      s3_access_key: $QUAY_AWS_ACCESS_KEY
+      s3_secret_key: $QUAY_AWS_SECRET_KEY
+      host: s3.us-east-2.amazonaws.com
+      s3_region: us-east-2
+PULL_METRICS_REDIS:
+        host: quay-quay-redis
+        port: 6379
+        db: 1
+EOF
+  ensure_yq
+  /tmp/yq eval-all -i 'select(fileIndex == 0) * select(fileIndex == 1)' config.yaml runtime_config.yaml
+
+  # Strip field-group keys for components this CR keeps managed. The operator
+  # injects those values; leaving them in configBundleSecret blocks rollout.
+  /tmp/yq -i '
+    del(
+      .FEATURE_SECURITY_SCANNER,
+      .FEATURE_SECURITY_NOTIFICATIONS,
+      .SECURITY_SCANNER_ENDPOINT,
+      .SECURITY_SCANNER_INDEXING_INTERVAL,
+      .SECURITY_SCANNER_V4_ENDPOINT,
+      .SECURITY_SCANNER_V4_NAMESPACE_WHITELIST,
+      .SECURITY_SCANNER_V4_PSK,
+      .FEATURE_REPO_MIRROR,
+      .REPO_MIRROR_INTERVAL,
+      .REPO_MIRROR_SERVER_HOSTNAME,
+      .REPO_MIRROR_TLS_VERIFY,
+      .BUILDLOGS_REDIS,
+      .USER_EVENTS_REDIS,
+      .DB_URI,
+      .DB_CONNECTION_ARGS,
+      .SERVER_HOSTNAME,
+      .PREFERRED_URL_SCHEME,
+      .EXTERNAL_TLS_TERMINATION
+    )
+  ' config.yaml
+else
 cat >>config.yaml <<EOF
 CREATE_PRIVATE_REPO_ON_PUSH: true
 CREATE_NAMESPACE_ON_PUSH: true
@@ -387,8 +455,7 @@ EOF
 if [[ -n "${QUAY_EXTRA_CONFIG:-}" ]]; then
 	echo "Merging extra Quay config into defaults..."
 	echo "${QUAY_EXTRA_CONFIG}" >extra_config.yaml
-	curl -sL "https://github.com/mikefarah/yq/releases/latest/download/yq_linux_$(uname -m | sed 's/aarch64/arm64/;s/x86_64/amd64/')" \
-		-o /tmp/yq && chmod +x /tmp/yq
+	ensure_yq
 	/tmp/yq eval-all -i 'select(fileIndex == 0) *+ select(fileIndex == 1)' config.yaml extra_config.yaml
 	# Strip field-group keys for components this CR keeps managed. The operator
 	# injects those values; leaving them in configBundleSecret blocks rollout.
@@ -414,6 +481,7 @@ if [[ -n "${QUAY_EXTRA_CONFIG:-}" ]]; then
 			.EXTERNAL_TLS_TERMINATION
 		)
 	' config.yaml
+fi
 fi
 
 # Build support requires unmanaged TLS plus a virtual builder. When enabled, the

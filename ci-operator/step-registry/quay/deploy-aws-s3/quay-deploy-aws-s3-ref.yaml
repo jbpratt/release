@@ -36,9 +36,11 @@ ref:
     default: "redhat-operators"
   - name: QUAY_EXTRA_CONFIG
     documentation: |-
-      Additional Quay configuration YAML merged on top of the default config.
-      Values provided here override defaults. Supports flat keys and nested
-      structures. Example: "FEATURE_QUOTA_MANAGEMENT: false"
+      Additional Quay configuration YAML merged on top of the base config.
+      The base is ${SHARED_DIR}/quay-app-config.yaml (the app config baseline
+      written by quay-copy-app-config) when present, otherwise the embedded
+      default config. Values provided here override the base. Supports flat
+      keys and nested structures. Example: "FEATURE_QUOTA_MANAGEMENT: false"
     default: ""
   - name: ENABLE_BUILD_SUPPORT
     documentation: |-
