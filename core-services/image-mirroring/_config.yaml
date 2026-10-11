@@ -493,6 +493,12 @@ supplementalCIImages:
     image: registry.access.redhat.com/ubi8/go-toolset:latest
   ci/ubi-9-go-toolset:1.24.4:
     image: registry.access.redhat.com/ubi9/go-toolset:1.24.4
+  ci/ubi-9-go-toolset:1.26:
+    image: registry.access.redhat.com/ubi9/go-toolset:1.26
+  ci/ubi-9-minimal:9.8:
+    image: registry.access.redhat.com/ubi9/ubi-minimal:9.8
+  ci/ubi-9-nodejs-22-minimal:9.8:
+    image: registry.access.redhat.com/ubi9/nodejs-22-minimal:9.8
   ci/openshift-gitops-go-toolset:1.24.6:
     image: quay.io/devtools_gitops/go-toolset:1.24.6
   ci/openshift-gitops-go-toolset:1.25.3:
