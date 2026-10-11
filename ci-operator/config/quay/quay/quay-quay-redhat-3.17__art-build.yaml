@@ -1,0 +1,53 @@
+base_images:
+  go-toolset:
+    name: ubi-9-go-toolset
+    namespace: ci
+    tag: "1.26"
+  nodejs-22-minimal:
+    name: ubi-9-nodejs-22-minimal
+    namespace: ci
+    tag: "9.8"
+  ubi-minimal:
+    name: ubi-9-minimal
+    namespace: ci
+    tag: "9.8"
+build_root:
+  image_stream_tag:
+    name: release
+    namespace: openshift
+    tag: rhel-9-release-golang-1.25-openshift-4.22
+images:
+  items:
+  - dockerfile_path: Containerfile.art
+    inputs:
+      go-toolset:
+        as:
+        - registry.redhat.io/ubi9/go-toolset:9.8-1785156757
+      nodejs-22-minimal:
+        as:
+        - registry.redhat.io/ubi9/nodejs-22-minimal
+        - registry.redhat.io/ubi9/nodejs-22-minimal:latest
+      ubi-minimal:
+        as:
+        - registry.redhat.io/ubi9/ubi-minimal
+        - registry.redhat.io/ubi9/ubi-minimal:9.8-1780378819
+    to: quay-art
+  skip_if_only_changed: ^(\.agents/|\.claude/|docs/|.*\.md$)
+resources:
+  '*':
+    limits:
+      memory: 4Gi
+    requests:
+      cpu: 100m
+      memory: 200Mi
+  quay-art:
+    limits:
+      memory: 32Gi
+    requests:
+      cpu: "2"
+      memory: 4Gi
+zz_generated_metadata:
+  branch: redhat-3.17
+  org: quay
+  repo: quay
+  variant: art-build
