@@ -437,6 +437,8 @@ gather_metrics() {
     curl -fs --max-time 2 "http://127.0.0.1:${QUAY_METRICS_PORT}/-/ready" >/dev/null && break
     sleep 1
   done
+  curl -fs --max-time 2 "http://127.0.0.1:${QUAY_METRICS_PORT}/-/ready" >/dev/null ||
+    echo "quay-metrics: Prometheus port-forward not ready: $(tr '\n' ' ' <"${tmp}/port-forward.log")" >>"${ABSENT}"
   if timeout 300 python3 -I "${tmp}/ci-metrics.py" export \
       --prom-url "http://127.0.0.1:${QUAY_METRICS_PORT}" --start "${start}" --end "$(date +%s)" \
       --step 30s --queries "${out}/queries.cluster.json" --out "${out}"; then

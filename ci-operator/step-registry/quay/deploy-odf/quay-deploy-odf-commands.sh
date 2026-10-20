@@ -403,11 +403,12 @@ fi
 # The operator refuses its monitoring component outside AllNamespaces mode and
 # this install is OwnNamespace, so apply the component's four scrape objects
 # (quay-operator kustomize/components/monitoring) by hand. The cluster Prometheus
-# then scrapes the Pushgateway in every quay-app pod, and quay-gather exports
-# the series. Diagnostics only: a failure here never fails the deploy.
+# then scrapes the Pushgateway in every pod labelled quay-monitor=true, and
+# quay-gather exports the series. Operator 3.18 and later set that label;
+# 3.16 and 3.17 do not, so their jobs export only the pod resource series.
+# Diagnostics only: a failure here never fails the deploy.
 echo "Enabling cluster Prometheus scrape of Quay metrics..." >&2
-date +%s >"${SHARED_DIR}/quay_metrics_start"
-if ! { oc label namespace "${QUAY_NS}" openshift.io/cluster-monitoring=true --overwrite &&
+if { oc label namespace "${QUAY_NS}" openshift.io/cluster-monitoring=true --overwrite &&
   cat <<'EOF' | oc apply -n "${QUAY_NS}" -f -
 apiVersion: v1
 kind: Service
@@ -458,6 +459,8 @@ spec:
       quay-component: monitoring
 EOF
 }; then
+  date +%s >"${SHARED_DIR}/quay_metrics_start"
+else
   echo "WARNING: could not enable the Quay metrics scrape; quay-gather will export no quay_* series" >&2
 fi
 

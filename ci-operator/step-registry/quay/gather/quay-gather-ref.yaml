@@ -10,8 +10,9 @@ ref:
   # The step traps SIGTERM so an aborted job still gets the gather summary and,
   # when nothing was collected, the EMPTY-GATHER marker. prow's entrypoint
   # signals the step process, not the process group, so bash cannot run the
-  # trap until the in-flight `timeout 60 oc ...` child returns - the budget has
-  # to clear CALL_TIMEOUT with room to spare, not just the trap's own runtime.
+  # trap until the in-flight child returns - the budget has to clear the longest
+  # one (the 300s quay-metrics export) with room to spare, not just the trap's
+  # own runtime.
   # 10m is what 9 of the 11 gather/* refs use, and it is a ceiling, not a
   # delay: entrypoint stops waiting the moment the process exits.
   grace_period: 10m
@@ -64,7 +65,7 @@ ref:
     quay-metrics/ holds the Quay metrics the cluster Prometheus scraped, exported
     with quay/quay's shared query set and ci-metrics.py (pinned by commit) plus pod
     CPU, memory and restart queries for QUAYNAMESPACE (default quay-enterprise):
-    queries/<name>.json, meta.json and summary.md. The window starts at the time the
+    queries.cluster.json, queries/<name>.json, meta.json and summary.md. The window starts at the time the
     quay-deploy-* steps enabled the scrape, or 3h back when they did not.
 
     Jaeger traces are gathered separately by quay-gather-jaeger-traces, which needs
