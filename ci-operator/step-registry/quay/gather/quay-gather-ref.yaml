@@ -61,5 +61,11 @@ ref:
     Fields that could not be read are null and listed in "missing", with
     "complete": false. Its schema is a contract: change it additively only.
 
+    quay-metrics/ holds the Quay metrics the cluster Prometheus scraped, exported
+    with quay/quay's shared query set and ci-metrics.py (pinned by commit) plus pod
+    CPU, memory and restart queries for QUAYNAMESPACE (default quay-enterprise):
+    queries/<name>.json, meta.json and summary.md. The window starts at the time the
+    quay-deploy-* steps enabled the scrape, or 3h back when they did not.
+
     Jaeger traces are gathered separately by quay-gather-jaeger-traces, which needs
     a port-forward and a deployed-Jaeger marker.

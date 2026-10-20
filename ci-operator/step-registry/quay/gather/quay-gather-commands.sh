@@ -378,6 +378,79 @@ while IFS= read -r ns; do
   printf '%s pods=%s container-logs=%s\n' "${ns}" "${ns_pods}" "${ns_logs}" >>"${SUMMARY}"
 done <<<"${NAMESPACES}"
 
+# --- quay-metrics -----------------------------------------------------------
+# Same query set and tool as the quay/quay GHA job (.github/ci-metrics/queries.json
+# and .github/scripts/ci-metrics.py at QUAY_METRICS_REF), run against the cluster
+# Prometheus while it is still up. The deploy steps make it scrape the quay-app
+# Pushgateways and record the window start in quay_metrics_start.
+QUAY_METRICS_REF="d4e6c8082447cc69e634e38f4b6437046c2925e5"
+QUAY_METRICS_PORT=19090
+gather_metrics() {
+  local out="${ARTIFACT_DIR}/quay-metrics" ns="${QUAYNAMESPACE:-quay-enterprise}"
+  local src="https://raw.githubusercontent.com/quay/quay/${QUAY_METRICS_REF}/.github"
+  local tmp start pf_pid
+  if past_deadline; then
+    echo "[quay-gather] SKIPPED (deadline reached): quay-metrics" >>"${ABSENT}"
+    return
+  fi
+  command -v python3 >/dev/null || { echo "quay-metrics: python3 not in the step image" >>"${ABSENT}"; return; }
+  start="$(cat "${SHARED_DIR:-}/quay_metrics_start" 2>/dev/null)"
+  # No marker: the deploy path did not enable the scrape. The container_* and
+  # kube_pod_* series are scraped anyway, so export the last 3h of those.
+  [[ "${start}" =~ ^[0-9]+$ ]] || start=$(( $(date +%s) - 3 * 3600 ))
+  tmp="$(mktemp -d)"
+  if ! curl -fsSL --max-time 60 -o "${tmp}/queries.json" "${src}/ci-metrics/queries.json" ||
+     ! curl -fsSL --max-time 60 -o "${tmp}/ci-metrics.py" "${src}/scripts/ci-metrics.py"; then
+    echo "quay-metrics: could not fetch the query set at ${QUAY_METRICS_REF}" >>"${ABSENT}"
+    rm -rf -- "${tmp}"
+    return
+  fi
+  # Cluster-side overrides. The ServiceMonitor sets job to the Service name, and
+  # without honor_labels the job each Quay process pushed with moves to
+  # exported_job, so exported_job="" keeps only the Pushgateway's own start time.
+  # Then the pod resource series for the Quay namespace.
+  mkdir -p "${out}"
+  if ! jq --arg ns "${ns}" '
+      map(if .name == "up" then .expr = "up{job=\"quay-metrics\"}"
+          elif .name == "pushgateway_start_time"
+          then .expr = "process_start_time_seconds{job=\"quay-metrics\",exported_job=\"\"}"
+          else . end)
+      + [{name: "pod_cpu_rate", description: "Container CPU seconds per second, by pod and container",
+          expr: "sum by (pod, container) (rate(container_cpu_usage_seconds_total{namespace=\"\($ns)\",container!=\"\"}[2m]))"},
+         {name: "pod_cpu_throttled_rate", description: "Container CPU throttled seconds per second, by pod and container",
+          expr: "sum by (pod, container) (rate(container_cpu_cfs_throttled_seconds_total{namespace=\"\($ns)\",container!=\"\"}[2m]))"},
+         {name: "pod_memory_working_set_bytes", description: "Container working set memory in bytes, by pod and container",
+          expr: "sum by (pod, container) (container_memory_working_set_bytes{namespace=\"\($ns)\",container!=\"\"})"},
+         {name: "pod_container_restarts", description: "Container restart count, by pod and container",
+          expr: "sum by (pod, container) (kube_pod_container_status_restarts_total{namespace=\"\($ns)\"})"}]' \
+      "${tmp}/queries.json" >"${out}/queries.cluster.json"; then
+    echo "quay-metrics: could not build the cluster query set" >>"${ABSENT}"
+    rm -rf -- "${tmp}"
+    return
+  fi
+  # prometheus-k8s listens on localhost:9090 inside its pod; a port-forward
+  # reaches it without a token.
+  timeout 600 oc -n openshift-monitoring port-forward pod/prometheus-k8s-0 \
+    "${QUAY_METRICS_PORT}:9090" >"${tmp}/port-forward.log" 2>&1 &
+  pf_pid=$!
+  for _ in $(seq 30); do
+    curl -fs --max-time 2 "http://127.0.0.1:${QUAY_METRICS_PORT}/-/ready" >/dev/null && break
+    sleep 1
+  done
+  if timeout 300 python3 -I "${tmp}/ci-metrics.py" export \
+      --prom-url "http://127.0.0.1:${QUAY_METRICS_PORT}" --start "${start}" --end "$(date +%s)" \
+      --step 30s --queries "${out}/queries.cluster.json" --out "${out}"; then
+    timeout 60 python3 -I "${tmp}/ci-metrics.py" summarize --in "${out}" \
+      || echo "quay-metrics: summarize failed" >>"${ABSENT}"
+  else
+    echo "quay-metrics: export failed (exit $?); port-forward: $(tr '\n' ' ' <"${tmp}/port-forward.log")" >>"${ABSENT}"
+  fi
+  kill "${pf_pid}" 2>/dev/null
+  rm -rf -- "${tmp}"
+  echo "[quay-gather] quay-metrics: $(jq -c '{quay_series, errors}' "${out}/meta.json" 2>/dev/null)" >&2
+}
+gather_metrics
+
 COMPLETE=true
 echo "Quay diagnostics gathering complete."
 exit 0

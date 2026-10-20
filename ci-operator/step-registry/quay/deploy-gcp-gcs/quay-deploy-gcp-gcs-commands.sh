@@ -453,6 +453,67 @@ else
   oc create secret generic -n quay-enterprise --from-file config.yaml=./config.yaml config-bundle-secret
 fi
 
+# The operator refuses its monitoring component outside AllNamespaces mode and
+# this install is OwnNamespace, so apply the component's four scrape objects
+# (quay-operator kustomize/components/monitoring) by hand. The cluster Prometheus
+# then scrapes the Pushgateway in every quay-app pod, and quay-gather exports
+# the series. Diagnostics only: a failure here never fails the deploy.
+echo "Enabling cluster Prometheus scrape of Quay metrics..." >&2
+date +%s >"${SHARED_DIR}/quay_metrics_start"
+if ! { oc label namespace "${QUAY_NS}" openshift.io/cluster-monitoring=true --overwrite &&
+  cat <<'EOF' | oc apply -n "${QUAY_NS}" -f -
+apiVersion: v1
+kind: Service
+metadata:
+  name: quay-metrics
+  labels:
+    quay-component: monitoring
+spec:
+  ports:
+  - name: quay-metrics
+    port: 9091
+    targetPort: 9091
+    protocol: TCP
+  selector:
+    quay-monitor: "true"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: quay-metrics
+rules:
+- apiGroups: [""]
+  resources: [services, endpoints, pods]
+  verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: quay-metrics
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: quay-metrics
+subjects:
+- kind: ServiceAccount
+  name: prometheus-k8s
+  namespace: openshift-monitoring
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: quay-metrics-monitor
+spec:
+  endpoints:
+  - port: quay-metrics
+  selector:
+    matchLabels:
+      quay-component: monitoring
+EOF
+}; then
+  echo "WARNING: could not enable the Quay metrics scrape; quay-gather will export no quay_* series" >&2
+fi
+
 echo "Creating Quay registry..." >&2
 cat <<EOF | oc apply -f -
 apiVersion: quay.redhat.com/v1
