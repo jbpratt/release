@@ -37,6 +37,10 @@ managed_files:
     - quay-quay-redhat-3.9__aws-ocp414-e2e-legacy.yaml
     - quay-quay-redhat-3.16__aws-ocp419-s3-upgrade.yaml
     - quay-quay-redhat-3.15__aws-ocp418-s3-upgrade.yaml
+    - quay-quay-redhat-3.14__aws-ocp416-s3-upgrade.yaml
+    - quay-quay-redhat-3.12__aws-ocp414-s3-upgrade.yaml
+    - quay-quay-redhat-3.10__aws-ocp412-s3-upgrade.yaml
+    - quay-quay-redhat-3.9__aws-ocp412-s3-upgrade.yaml
   retired: []
   # Hand-written configs in this directory, with the `as` of each test they
   # hold. --check fails on any other config here, or on a test added to these.
@@ -248,6 +252,13 @@ quay:
         ocp: ["4.19"]
         test: e2e-legacy
         as: aws-s3
+      # Edge https://docs.redhat.com/en/documentation/red_hat_quay/3.14/html-single/upgrade_red_hat_quay/index ; EUS-to-EUS; OCP minor both versions support.
+      - cron: daily
+        source: stable
+        clouds: [aws]
+        ocp: ["4.16"]
+        test: upgrade
+        upgrade_from: "3.12"
   - branch: redhat-3.12
     jobs:
       - cron: daily
@@ -256,6 +267,13 @@ quay:
         ocp: ["4.17"]
         test: e2e-legacy
         as: aws-s3
+      # Edge https://docs.redhat.com/en/documentation/red_hat_quay/3.12/html/upgrade_red_hat_quay/operator-upgrade ; EUS-to-EUS; OCP minor both versions support.
+      - cron: daily
+        source: stable
+        clouds: [aws]
+        ocp: ["4.14"]
+        test: upgrade
+        upgrade_from: "3.10"
   - branch: redhat-3.10
     jobs:
       - cron: daily
@@ -264,6 +282,13 @@ quay:
         ocp: ["4.15"]
         test: e2e-legacy
         as: aws-s3
+      # Edge https://docs.redhat.com/en/documentation/red_hat_quay/3.10/html/upgrade_red_hat_quay/operator-upgrade ; OCP minor both versions support.
+      - cron: daily
+        source: stable
+        clouds: [aws]
+        ocp: ["4.12"]
+        test: upgrade
+        upgrade_from: "3.9"
   - branch: redhat-3.9
     jobs:
       - cron: daily
@@ -272,6 +297,13 @@ quay:
         ocp: ["4.14"]
         test: e2e-legacy
         as: aws-s3
+      # Edge https://docs.redhat.com/en/documentation/red_hat_quay/3.9/html/upgrade_red_hat_quay/operator-upgrade ; 3.8 is not a tested stream; OCP minor both versions support.
+      - cron: daily
+        source: stable
+        clouds: [aws]
+        ocp: ["4.12"]
+        test: upgrade
+        upgrade_from: "3.8"
   - branch: master
     layout: base
     env:
